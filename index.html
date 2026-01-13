@@ -1,0 +1,1450 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Calculadora TMB/GET + IMC + Índices + Macros</title>
+  <meta name="description" content="TMB (Harris–Benedict revisada / Mifflin-St Jeor), GET/TDEE, IMC, ICC, cintura/altura, pesos objetivo/ideal/ajustado y macros editables. Exporta a PDF. Modo día/noche." />
+
+  <!-- jsPDF (exportar a PDF) -->
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      color-scheme: dark;
+
+      --bg: #0b1020;
+      --card: rgba(255,255,255,.06);
+      --card2: rgba(255,255,255,.08);
+      --text: rgba(255,255,255,.92);
+      --muted: rgba(255,255,255,.68);
+      --border: rgba(255,255,255,.14);
+      --shadow: 0 18px 50px rgba(0,0,0,.35);
+      --radius: 18px;
+      --focus: rgba(255,255,255,.22);
+
+      --good: rgba(46, 204, 113, .25);
+      --warn: rgba(241, 196, 15, .25);
+      --bad: rgba(231, 76, 60, .25);
+    }
+
+    [data-theme="light"]{
+      color-scheme: light;
+
+      --bg: #f6f7fb;
+      --card: rgba(0,0,0,.04);
+      --card2: rgba(0,0,0,.06);
+      --text: rgba(10,14,25,.92);
+      --muted: rgba(10,14,25,.62);
+      --border: rgba(10,14,25,.12);
+      --shadow: 0 18px 55px rgba(12,18,38,.12);
+      --focus: rgba(10,14,25,.18);
+
+      --good: rgba(46, 204, 113, .18);
+      --warn: rgba(241, 196, 15, .18);
+      --bad: rgba(231, 76, 60, .18);
+    }
+
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      background: radial-gradient(1200px 650px at 15% 10%, rgba(255,255,255,.08), transparent 50%),
+                  radial-gradient(900px 560px at 90% 15%, rgba(255,255,255,.06), transparent 55%),
+                  var(--bg);
+      color: var(--text);
+      min-height:100vh;
+      padding: 28px 16px 40px;
+    }
+    .wrap{max-width: 1180px; margin: 0 auto;}
+    header{
+      display:flex; align-items:flex-start; justify-content:space-between; gap:16px;
+      margin-bottom: 18px;
+    }
+    .title{display:flex; flex-direction:column; gap:8px;}
+    h1{
+      margin:0;
+      font-size: clamp(22px, 3vw, 30px);
+      letter-spacing: .2px;
+      line-height:1.1;
+    }
+    .subtitle{
+      margin:0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.35;
+      max-width: 85ch;
+    }
+    .top-actions{
+      display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:flex-end;
+    }
+
+    .pill{
+      border: 1px solid var(--border);
+      background: var(--card);
+      border-radius: 999px;
+      padding: 10px 12px;
+      display:flex;
+      gap:10px;
+      align-items:center;
+      box-shadow: var(--shadow);
+    }
+    .pill label{font-size: 13px; color: var(--muted)}
+    .toggle{
+      position:relative;
+      width: 46px; height: 28px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.14);
+      border: 1px solid var(--border);
+      cursor:pointer;
+      outline:none;
+    }
+    [data-theme="light"] .toggle{background: rgba(0,0,0,.08);}
+    .toggle:focus{box-shadow: 0 0 0 4px var(--focus);}
+    .knob{
+      position:absolute;
+      top: 3px; left: 3px;
+      width: 22px; height: 22px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.85);
+      transform: translateX(0);
+      transition: transform .25s ease;
+    }
+    [data-theme="light"] .knob{background: rgba(10,14,25,.85);}
+    .toggle[aria-checked="true"] .knob{transform: translateX(18px);}
+
+    main{
+      display:grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: 16px;
+      margin-top: 12px;
+    }
+    @media (max-width: 980px){
+      main{grid-template-columns: 1fr;}
+    }
+
+    .card{
+      background: linear-gradient(180deg, var(--card), transparent 160%);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 16px;
+      overflow:hidden;
+    }
+    .card h2{
+      margin: 0 0 10px 0;
+      font-size: 16px;
+      letter-spacing:.2px;
+    }
+    .card p.help{
+      margin: 0 0 12px 0;
+      font-size: 13px;
+      color: var(--muted);
+      line-height:1.35;
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    @media (max-width: 520px){
+      .grid{grid-template-columns: 1fr;}
+    }
+
+    .field{display:flex; flex-direction:column; gap:6px;}
+    .field label{font-size: 12px; color: var(--muted);}
+    .row{display:flex; gap: 8px; align-items:center; flex-wrap:wrap;}
+
+    input, select, button{font: inherit;}
+
+    input, select{
+      width: 100%;
+      padding: 10px 11px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--card2);
+      color: var(--text);
+      outline: none;
+      transition: border-color .12s ease, box-shadow .12s ease;
+    }
+    input:focus, select:focus{box-shadow: 0 0 0 4px var(--focus);}
+    input[type="number"]{appearance:textfield;}
+    input[type="number"]::-webkit-outer-spin-button,
+    input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+    /* Dropdown legible en tema oscuro */
+    select{ color: var(--text); }
+    select option{
+      color: #0a0e19;
+      background: #ffffff;
+    }
+
+    .unit{max-width: 140px; flex: 0 0 140px;}
+    .inline-hint{font-size: 12px; color: var(--muted); margin-top: 6px;}
+
+    .actions{
+      display:flex;
+      gap: 10px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+    .btn{
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.10);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 12px;
+      cursor:pointer;
+      transition: transform .12s ease, background .12s ease;
+      display:inline-flex;
+      align-items:center;
+      gap: 8px;
+      user-select:none;
+    }
+    [data-theme="light"] .btn{background: rgba(0,0,0,.06);}
+    .btn:hover{transform: translateY(-1px);}
+    .btn:active{transform: translateY(0px);}
+    .btn.primary{background: rgba(255,255,255,.18);}
+    [data-theme="light"] .btn.primary{background: rgba(10,14,25,.10);}
+
+    .divider{
+      border:none; border-top:1px solid var(--border);
+      margin:14px 0; opacity:.9;
+    }
+
+    .results{position:relative;}
+    .badge{
+      display:inline-flex;
+      align-items:center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      background: var(--card);
+      padding: 8px 10px;
+      border-radius: 999px;
+      margin-bottom: 12px;
+    }
+
+    .kpi{display:grid; grid-template-columns: 1fr; gap: 10px;}
+    .kpi-item{
+      border: 1px solid var(--border);
+      background: linear-gradient(180deg, var(--card2), transparent 180%);
+      border-radius: 16px;
+      padding: 12px;
+
+      transform: translateY(14px);
+      opacity: 0;
+      filter: blur(3px);
+      transition: transform .45s ease, opacity .45s ease, filter .45s ease;
+      will-change: transform, opacity, filter;
+    }
+    .kpi-item.show{
+      transform: translateY(0);
+      opacity: 1;
+      filter: blur(0);
+    }
+    .kpi-top{
+      display:flex;
+      align-items:baseline;
+      justify-content:space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .kpi-title{
+      font-size: 13px;
+      color: var(--muted);
+      margin: 0;
+    }
+    .kpi-value{
+      font-size: 22px;
+      font-weight: 700;
+      margin: 0;
+      letter-spacing:.2px;
+      white-space: nowrap;
+    }
+    .kpi-sub{
+      margin: 6px 0 0 0;
+      font-size: 12px;
+      color: var(--muted);
+      line-height:1.35;
+    }
+
+    .meter{
+      margin-top: 10px;
+      height: 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.06);
+      overflow:hidden;
+    }
+    [data-theme="light"] .meter{background: rgba(0,0,0,.06);}
+    .fill{
+      height: 100%;
+      width: 0%;
+      border-radius: 999px;
+      transition: width .65s cubic-bezier(.2,.9,.2,1);
+      background: rgba(255,255,255,.35);
+    }
+
+    .macrobar{
+      margin-top: 10px;
+      height: 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      overflow:hidden;
+      display:flex;
+      background: rgba(255,255,255,.04);
+    }
+    .seg{height:100%; transition: width .65s cubic-bezier(.2,.9,.2,1);}
+    .seg.c{background: rgba(115,161,255,.65);}
+    .seg.f{background: rgba(255,196,15,.55);}
+    .seg.p{background: rgba(46,204,113,.55);}
+
+    .note{
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px dashed var(--border);
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .error{
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: var(--bad);
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.35;
+      display:none;
+    }
+
+    .mini{
+      display:flex; gap:10px; flex-wrap:wrap;
+      margin-top: 10px;
+    }
+    .chip{
+      font-size: 12px;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      background: var(--card);
+      padding: 8px 10px;
+      border-radius: 999px;
+    }
+
+    footer{
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+      text-align:center;
+    }
+    footer a{ color: inherit; text-decoration: underline; }
+
+    .dev{
+      margin-top: 8px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+      opacity: .95;
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+      align-items:center;
+      justify-content:center;
+    }
+
+    .macro-input{
+      max-width: 160px;
+      flex: 1 1 160px;
+    }
+
+    .checkrow{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      user-select:none;
+    }
+    .checkrow input{ width:auto; padding:0; }
+  </style>
+</head>
+
+<body>
+  <div class="wrap" id="app">
+    <header>
+      <div class="title">
+        <h1>Calculadora TMB/GET + IMC + Índices + Macros</h1>
+        <p class="subtitle">
+          Elige la ecuación de TMB (<b>Harris–Benedict revisada</b> o <b>Mifflin–St Jeor</b>), calcula <b>GET/TDEE</b>, <b>IMC</b>,
+          <b>peso objetivo (ideal)</b>, <b>peso ajustado</b>, <b>peso para normopeso</b>, <b>ICC</b>, <b>cintura/altura</b>,
+          <b>proteína g/kg/día</b> y <b>macros %</b>. Exporta a PDF.
+        </p>
+      </div>
+
+      <div class="top-actions">
+        <div class="pill">
+          <label for="themeToggle">🌙/☀️</label>
+          <button id="themeToggle" class="toggle" type="button" role="switch" aria-checked="false" aria-label="Cambiar modo día/noche">
+            <span class="knob" aria-hidden="true"></span>
+          </button>
+        </div>
+
+        <button class="btn" id="btnExport" type="button" title="Exportar un resumen a PDF">📄 Exportar PDF</button>
+      </div>
+    </header>
+
+    <main>
+      <!-- Inputs -->
+      <section class="card">
+        <h2>Datos</h2>
+        <p class="help">
+          Selecciona la <b>ecuación de TMB</b>, introduce <b>sexo</b>, <b>edad</b>, <b>peso</b> y <b>altura</b>. Para índices añade <b>cintura</b> y <b>cadera</b>.
+          El <b>nombre completo</b> del paciente es opcional.
+        </p>
+
+        <div class="grid">
+          <div class="field" style="grid-column: 1 / -1;">
+            <label for="patientName">Nombre completo del paciente (opcional)</label>
+            <input id="patientName" type="text" placeholder="Ej: Juan Pérez García" />
+          </div>
+
+          <div class="field" style="grid-column: 1 / -1;">
+            <label for="equation">Ecuación de TMB</label>
+            <select id="equation">
+              <option value="hb1984" selected>Harris–Benedict revisada (Roza & Shizgal, 1984)</option>
+              <option value="msj1990">Mifflin–St Jeor (1990) — recomendada hoy por muchas asociaciones</option>
+            </select>
+            <div class="inline-hint">GET/TDEE = TMB × actividad (± ajuste objetivo).</div>
+          </div>
+
+          <div class="field">
+            <label for="sex">Sexo</label>
+            <select id="sex">
+              <option value="male">Hombre</option>
+              <option value="female">Mujer</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="age">Edad (años)</label>
+            <input id="age" type="number" min="0" step="1" placeholder="Ej: 35" />
+          </div>
+
+          <div class="field">
+            <label>Peso</label>
+            <div class="row">
+              <input id="weight" type="number" min="0" step="0.1" placeholder="Ej: 72.5" />
+              <select id="weightUnit" class="unit" aria-label="Unidad de peso">
+                <option value="kg">kg</option>
+                <option value="lb">lb</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Altura</label>
+            <div class="row" id="heightRow">
+              <input id="height" type="number" min="0" step="0.1" placeholder="Ej: 175" />
+              <select id="heightUnit" class="unit" aria-label="Unidad de altura">
+                <option value="cm">cm</option>
+                <option value="m">m</option>
+                <option value="in">in</option>
+                <option value="ftin">ft + in</option>
+              </select>
+            </div>
+
+            <div class="row" id="heightFtIn" style="display:none; margin-top:8px;">
+              <input id="heightFt" type="number" min="0" step="1" placeholder="ft" />
+              <input id="heightIn" type="number" min="0" step="0.1" placeholder="in" />
+              <span class="muted" style="font-size:12px;">(pies + pulgadas)</span>
+            </div>
+
+            <div class="inline-hint">Recomendado: cm (p. ej. 175). Si usas ft+in, rellena ambos.</div>
+          </div>
+        </div>
+
+        <hr class="divider">
+
+        <div class="grid">
+          <div class="field">
+            <label>Nivel de actividad (factor)</label>
+            <select id="activity">
+              <option value="1.2">Sedentario (1.2) — poco o nada de ejercicio</option>
+              <option value="1.375">Ligero (1.375) — 1 a 3 días/semana</option>
+              <option value="1.55" selected>Moderado (1.55) — 3 a 5 días/semana</option>
+              <option value="1.725">Fuerte (1.725) — 6 a 7 días/semana</option>
+              <option value="1.9">Muy fuerte (1.9) — atleta / trabajo muy físico</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label>Objetivo (opcional)</label>
+            <select id="goal">
+              <option value="0" selected>Sin ajuste</option>
+              <option value="-300">Déficit suave (-300 kcal)</option>
+              <option value="-500">Déficit típico (-500 kcal)</option>
+              <option value="300">Superávit suave (+300 kcal)</option>
+              <option value="500">Superávit típico (+500 kcal)</option>
+            </select>
+          </div>
+        </div>
+
+        <hr class="divider">
+
+        <h2 style="margin-top:0;">Proteína y macros</h2>
+        <p class="help">
+          Proteína objetivo: <b>x g/kg/día</b>. Macros desde el <b>GET/TDEE</b> (kcal/g: CH 4, Prot 4, Grasas 9).
+          Los porcentajes son editables.
+        </p>
+
+        <div class="grid">
+          <div class="field">
+            <label>Proteína objetivo (g/kg/día)</label>
+            <select id="proteinRate">
+              <option value="0.8" selected>0,8 g/kg/día (por defecto)</option>
+              <option value="1.0">1,0 g/kg/día</option>
+              <option value="1.2">1,2 g/kg/día</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label>Macros (%) — editable</label>
+            <div class="row">
+              <input id="carbPct" class="macro-input" type="number" min="0" max="100" step="0.1" value="55" />
+              <input id="fatPct"  class="macro-input" type="number" min="0" max="100" step="0.1" value="30" />
+              <input id="protPct" class="macro-input" type="number" min="0" max="100" step="0.1" value="15" />
+            </div>
+            <div class="row" style="margin-top:6px; color: var(--muted); font-size: 12px;">
+              <span style="min-width:160px;">CH %</span>
+              <span style="min-width:160px;">Grasas %</span>
+              <span style="min-width:160px;">Proteínas %</span>
+            </div>
+
+            <div class="checkrow">
+              <input id="macroAuto" type="checkbox" checked />
+              <label for="macroAuto">Auto-ajustar para que sumen 100%</label>
+            </div>
+            <div class="inline-hint" id="macroHint">Suma actual: 100%.</div>
+          </div>
+        </div>
+
+        <hr class="divider">
+
+        <h2 style="margin-top:0;">Índices y peso objetivo (ideal)</h2>
+        <p class="help">
+          Para <b>ICC (cintura/cadera)</b> y <b>cintura/altura</b> introduce <b>cintura</b> y <b>cadera</b>.
+          Además define un <b>IMC objetivo (19–27)</b> para calcular <b>peso objetivo (ideal)</b> y <b>peso ajustado</b>.
+        </p>
+
+        <div class="grid">
+          <div class="field">
+            <label>Cintura</label>
+            <div class="row">
+              <input id="waist" type="number" min="0" step="0.1" placeholder="Ej: 84" />
+              <select id="circUnit" class="unit" aria-label="Unidad de cintura/cadera">
+                <option value="cm" selected>cm</option>
+                <option value="in">in</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Cadera</label>
+            <div class="row">
+              <input id="hip" type="number" min="0" step="0.1" placeholder="Ej: 98" />
+              <div class="unit" style="display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px;">
+                misma unidad
+              </div>
+            </div>
+          </div>
+
+          <div class="field" style="grid-column: 1 / -1;">
+            <label for="bmiTarget">IMC objetivo (19–27)</label>
+            <select id="bmiTarget">
+              <option value="19">19</option>
+              <option value="20">20</option>
+              <option value="21">21</option>
+              <option value="22" selected>22</option>
+              <option value="23">23</option>
+              <option value="24">24</option>
+              <option value="25">25</option>
+              <option value="26">26</option>
+              <option value="27">27</option>
+            </select>
+            <div class="inline-hint">
+              Peso ajustado = peso ideal + 0.25*(peso real - peso ideal) si peso real &gt; peso ideal.
+            </div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="btn primary" id="btnCalc" type="button">🧮 Calcular</button>
+          <button class="btn" id="btnReset" type="button">↺ Reiniciar</button>
+        </div>
+
+        <div id="error" class="error" role="alert"></div>
+
+        <div class="mini">
+          <span class="chip">GET/TDEE = TMB × actividad</span>
+          <span class="chip">IMC = kg / m²</span>
+          <span class="chip">Normopeso: IMC 18.5–24.9</span>
+          <span class="chip">Peso ideal = IMC objetivo × altura²</span>
+          <span class="chip">Peso ajustado = ideal + 0.25*(actual - ideal) (si actual &gt; ideal)</span>
+        </div>
+      </section>
+
+      <!-- Results -->
+      <section class="card results" aria-live="polite">
+        <span class="badge">✨ Resultados (incluye pesos)</span>
+
+        <div class="kpi">
+          <div class="kpi-item" id="kpiBmr">
+            <div class="kpi-top">
+              <p class="kpi-title" id="bmrTitle">TMB</p>
+              <p class="kpi-value"><span data-num id="bmrVal">—</span> <span class="muted" style="font-size:12px;">kcal/día</span></p>
+            </div>
+            <p class="kpi-sub" id="bmrSub">Introduce tus datos y pulsa Calcular.</p>
+          </div>
+
+          <div class="kpi-item" id="kpiTdee">
+            <div class="kpi-top">
+              <p class="kpi-title">GET / TDEE (con actividad y ajuste)</p>
+              <p class="kpi-value"><span data-num id="tdeeVal">—</span> <span class="muted" style="font-size:12px;">kcal/día</span></p>
+            </div>
+            <p class="kpi-sub" id="tdeeSub">Actividad + ajuste de objetivo.</p>
+          </div>
+
+          <div class="kpi-item" id="kpiMacros">
+            <div class="kpi-top">
+              <p class="kpi-title">Macros desde GET/TDEE + proteína objetivo</p>
+              <p class="kpi-value" style="font-size:16px;">
+                CH: <b><span id="carbG">—</span>g</b> · Grasas: <b><span id="fatG">—</span>g</b> · Prot: <b><span id="protG">—</span>g</b>
+              </p>
+            </div>
+            <p class="kpi-sub" id="macrosSub">—</p>
+            <div class="macrobar" aria-hidden="true">
+              <div class="seg c" id="segC" style="width:0%"></div>
+              <div class="seg f" id="segF" style="width:0%"></div>
+              <div class="seg p" id="segP" style="width:0%"></div>
+            </div>
+            <p class="kpi-sub" style="margin-top:8px;">
+              Proteína objetivo (g/kg/día): <b><span id="protTargetG">—</span> g/día</b>
+              <span class="muted">· (según selector)</span>
+            </p>
+          </div>
+
+          <div class="kpi-item" id="kpiBmi">
+            <div class="kpi-top">
+              <p class="kpi-title">IMC</p>
+              <p class="kpi-value"><span data-num id="bmiVal">—</span></p>
+            </div>
+            <p class="kpi-sub" id="bmiSub">—</p>
+            <div class="meter" aria-hidden="true"><div class="fill" id="bmiFill"></div></div>
+          </div>
+
+          <div class="kpi-item" id="kpiWeights">
+            <div class="kpi-top">
+              <p class="kpi-title">Peso objetivo (ideal)</p>
+              <p class="kpi-value" style="font-size:16px;">
+                Normopeso: <b><span id="wNormMin">—</span> - <span id="wNormMax">—</span> kg</b>
+              </p>
+            </div>
+            <p class="kpi-sub" id="weightsSub">
+              IMC objetivo <span id="bmiTargetShow">—</span> -> Peso ideal <b><span id="wIdeal">—</span> kg</b> · Peso ajustado <b><span id="wAdj">—</span> kg</b>
+            </p>
+          </div>
+
+          <div class="kpi-item" id="kpiRatios">
+            <div class="kpi-top">
+              <p class="kpi-title">Índices (si hay cintura y cadera)</p>
+              <p class="kpi-value" style="font-size:16px; font-weight:700;">
+                ICC: <span data-num id="whrVal">—</span> · C/Alt: <span data-num id="whtVal">—</span>
+              </p>
+            </div>
+            <p class="kpi-sub" id="ratiosSub">—</p>
+          </div>
+        </div>
+
+        <div class="note" id="note">
+          <b>Nota:</b> estimaciones generales. Ajustar por composición corporal, patología, tratamiento y adherencia.
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="dev">
+        <div>Desarrollado por Ana María Sanjurjo Amado DUE y Germán Quintana Diez PhD LV MSC</div>
+        <div><a href="https://www.wairua.xyz" target="_blank" rel="noopener noreferrer">www.wairua.xyz</a></div>
+      </div>
+    </footer>
+  </div>
+
+<script>
+(() => {
+  // ---------- Theme ----------
+  const root = document.documentElement;
+  const themeToggle = document.getElementById('themeToggle');
+  const savedTheme = localStorage.getItem('hb_theme');
+  const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+
+  function setTheme(mode){
+    root.setAttribute('data-theme', mode);
+    themeToggle.setAttribute('aria-checked', mode === 'light');
+    localStorage.setItem('hb_theme', mode);
+  }
+  setTheme(savedTheme || (prefersLight ? 'light' : 'dark'));
+
+  themeToggle.addEventListener('click', () => {
+    const cur = root.getAttribute('data-theme') || 'dark';
+    setTheme(cur === 'dark' ? 'light' : 'dark');
+  });
+
+  // ---------- Elements ----------
+  const el = (id) => document.getElementById(id);
+
+  const patientName = el('patientName');
+  const equation = el('equation');
+
+  const sex = el('sex');
+  const age = el('age');
+
+  const weight = el('weight');
+  const weightUnit = el('weightUnit');
+
+  const height = el('height');
+  const heightUnit = el('heightUnit');
+  const heightFtIn = el('heightFtIn');
+  const heightFt = el('heightFt');
+  const heightIn = el('heightIn');
+
+  const activity = el('activity');
+  const goal = el('goal');
+
+  const proteinRate = el('proteinRate');
+
+  const carbPct = el('carbPct');
+  const fatPct  = el('fatPct');
+  const protPct = el('protPct');
+  const macroAuto = el('macroAuto');
+  const macroHint = el('macroHint');
+
+  const waist = el('waist');
+  const hip = el('hip');
+  const circUnit = el('circUnit');
+
+  const bmiTarget = el('bmiTarget');
+
+  const errorBox = el('error');
+
+  const bmrTitle = el('bmrTitle');
+  const bmrVal = el('bmrVal');
+  const tdeeVal = el('tdeeVal');
+  const bmiVal = el('bmiVal');
+  const whrVal = el('whrVal');
+  const whtVal = el('whtVal');
+
+  const carbG = el('carbG');
+  const fatG = el('fatG');
+  const protG = el('protG');
+  const protTargetG = el('protTargetG');
+
+  const segC = el('segC');
+  const segF = el('segF');
+  const segP = el('segP');
+
+  const bmrSub = el('bmrSub');
+  const tdeeSub = el('tdeeSub');
+  const bmiSub = el('bmiSub');
+  const ratiosSub = el('ratiosSub');
+  const macrosSub = el('macrosSub');
+
+  const wNormMin = el('wNormMin');
+  const wNormMax = el('wNormMax');
+  const wIdeal = el('wIdeal');
+  const wAdj = el('wAdj');
+  const bmiTargetShow = el('bmiTargetShow');
+  const weightsSub = el('weightsSub');
+
+  const bmiFill = el('bmiFill');
+
+  const kpiBmr = el('kpiBmr');
+  const kpiTdee = el('kpiTdee');
+  const kpiMacros = el('kpiMacros');
+  const kpiBmi = el('kpiBmi');
+  const kpiWeights = el('kpiWeights');
+  const kpiRatios = el('kpiRatios');
+
+  const btnCalc = el('btnCalc');
+  const btnReset = el('btnReset');
+  const btnExport = el('btnExport');
+
+  // ---------- Helpers ----------
+  const round = (n, d=0) => {
+    const p = Math.pow(10, d);
+    return Math.round((n + Number.EPSILON) * p) / p;
+  };
+  const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+
+  function showError(msg){
+    errorBox.textContent = msg;
+    errorBox.style.display = 'block';
+  }
+  function clearError(){
+    errorBox.textContent = '';
+    errorBox.style.display = 'none';
+  }
+
+  function kgFromInput(){
+    const v = parseFloat(weight.value);
+    if (!isFinite(v) || v <= 0) return null;
+    return (weightUnit.value === 'lb') ? v * 0.45359237 : v;
+  }
+
+  function cmFromHeight(){
+    const unit = heightUnit.value;
+
+    if (unit === 'ftin') {
+      const ft = parseFloat(heightFt.value);
+      const inch = parseFloat(heightIn.value);
+      if (!isFinite(ft) || ft < 0) return null;
+      if (!isFinite(inch) || inch < 0) return null;
+      const totalIn = (ft * 12) + inch;
+      if (totalIn <= 0) return null;
+      return totalIn * 2.54;
+    }
+
+    const v = parseFloat(height.value);
+    if (!isFinite(v) || v <= 0) return null;
+
+    if (unit === 'cm') return v;
+    if (unit === 'm') return v * 100;
+    if (unit === 'in') return v * 2.54;
+    return null;
+  }
+
+  function cmFromCirc(inputEl){
+    const v = parseFloat(inputEl.value);
+    if (!isFinite(v) || v <= 0) return null;
+    return (circUnit.value === 'in') ? v * 2.54 : v;
+  }
+
+  function bmiCategory(bmi){
+    if (!isFinite(bmi)) return { label: '-', tone: 'neutral' };
+    if (bmi < 18.5) return { label: 'Bajo peso (< 18.5)', tone: 'warn' };
+    if (bmi < 25) return { label: 'Normopeso (18.5-24.9)', tone: 'good' };
+    if (bmi < 30) return { label: 'Sobrepeso (25-29.9)', tone: 'warn' };
+    return { label: 'Obesidad (>= 30)', tone: 'bad' };
+  }
+
+  function setBmiMeter(bmi, tone){
+    const pct = clamp(((bmi - 15) / (40 - 15)) * 100, 0, 100);
+    bmiFill.style.width = pct + '%';
+
+    if (tone === 'good') bmiFill.style.background = 'rgba(46, 204, 113, .55)';
+    else if (tone === 'warn') bmiFill.style.background = 'rgba(241, 196, 15, .55)';
+    else if (tone === 'bad') bmiFill.style.background = 'rgba(231, 76, 60, .55)';
+    else bmiFill.style.background = 'rgba(255,255,255,.35)';
+  }
+
+  function animateNumber(elm, toValue, decimals=0, duration=850){
+    const fromText = (elm.textContent || '').replace(',', '.');
+    const fromValue = parseFloat(fromText);
+    const start = performance.now();
+    const from = isFinite(fromValue) ? fromValue : 0;
+
+    if (!isFinite(toValue)) {
+      elm.textContent = '-';
+      return;
+    }
+
+    function step(t){
+      const k = clamp((t - start) / duration, 0, 1);
+      const eased = 1 - Math.pow(1 - k, 3);
+      const v = from + (toValue - from) * eased;
+      elm.textContent = round(v, decimals).toFixed(decimals);
+      if (k < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  function resetReveal(){
+    [kpiBmr, kpiTdee, kpiMacros, kpiBmi, kpiWeights, kpiRatios].forEach(n => n.classList.remove('show'));
+  }
+  function reveal(){
+    const nodes = [kpiBmr, kpiTdee, kpiMacros, kpiBmi, kpiWeights, kpiRatios];
+    nodes.forEach((node, i) => setTimeout(() => node.classList.add('show'), 60 + i * 90));
+  }
+
+  // ---------- Height unit UI ----------
+  function syncHeightUI(){
+    const unit = heightUnit.value;
+    if (unit === 'ftin') {
+      height.style.display = 'none';
+      heightFtIn.style.display = 'flex';
+    } else {
+      height.style.display = 'block';
+      heightFtIn.style.display = 'none';
+    }
+  }
+  heightUnit.addEventListener('change', syncHeightUI);
+  syncHeightUI();
+
+  // ---------- Macros ----------
+  let lastMacroChanged = 'carbPct';
+
+  function readPct(input){
+    const v = parseFloat(input.value);
+    if (!isFinite(v)) return 0;
+    return clamp(v, 0, 100);
+  }
+  function writePct(input, v){
+    input.value = String(round(clamp(v,0,100), 1));
+  }
+  function updateMacroHint(sum){
+    macroHint.textContent = `Suma actual: ${round(sum, 1)}%.` + (macroAuto.checked ? ' (Auto-ajuste activado)' : ' (Auto-ajuste desactivado)');
+  }
+
+  function autoAdjustMacros(){
+    const c = readPct(carbPct);
+    const f = readPct(fatPct);
+    const p = readPct(protPct);
+
+    if (!macroAuto.checked){
+      updateMacroHint(c+f+p);
+      return;
+    }
+
+    let nc=c, nf=f, np=p;
+
+    if (lastMacroChanged === 'carbPct' || lastMacroChanged === 'fatPct'){
+      np = 100 - nc - nf;
+      if (np < 0){
+        np = 0;
+        const s = nc + nf;
+        if (s > 0){
+          const k = 100 / s;
+          nc *= k; nf *= k;
+        }
+      }
+      writePct(carbPct, nc);
+      writePct(fatPct, nf);
+      writePct(protPct, np);
+    } else {
+      nf = 100 - nc - np;
+      if (nf < 0){
+        nf = 0;
+        const s = nc + np;
+        if (s > 0){
+          const k = 100 / s;
+          nc *= k; np *= k;
+        }
+      }
+      writePct(carbPct, nc);
+      writePct(fatPct, nf);
+      writePct(protPct, np);
+    }
+
+    updateMacroHint(readPct(carbPct)+readPct(fatPct)+readPct(protPct));
+  }
+
+  [carbPct, fatPct, protPct].forEach(inp => {
+    inp.addEventListener('input', () => {
+      lastMacroChanged = inp.id;
+      autoAdjustMacros();
+    });
+    inp.addEventListener('blur', () => {
+      writePct(inp, readPct(inp));
+      autoAdjustMacros();
+    });
+  });
+  macroAuto.addEventListener('change', autoAdjustMacros);
+
+  // ---------- Fórmulas ----------
+  function getFormulaMeta(){
+    if (equation.value === 'msj1990'){
+      return {
+        key: 'msj1990',
+        label: 'Mifflin–St Jeor (1990)',
+        long: 'Ecuacion: Mifflin–St Jeor (1990)'
+      };
+    }
+    return {
+      key: 'hb1984',
+      label: 'Harris–Benedict revisada (Roza & Shizgal, 1984)',
+      long: 'Ecuacion: Harris–Benedict revisada (Roza & Shizgal, 1984)'
+    };
+  }
+
+  // ---------- Core calculation ----------
+  function calc(){
+    clearError();
+
+    const name = (patientName.value || '').trim();
+
+    const ageY = parseFloat(age.value);
+    if (!isFinite(ageY) || ageY <= 0) {
+      showError('Falta la edad (en años) o no es válida.');
+      return null;
+    }
+
+    const kg = kgFromInput();
+    if (kg === null) {
+      showError('Falta el peso o no es válido.');
+      return null;
+    }
+
+    const cm = cmFromHeight();
+    if (cm === null) {
+      showError('Falta la altura o no es válida.');
+      return null;
+    }
+
+    // IMC objetivo (selector 19-27)
+    let bmiT = parseFloat(bmiTarget.value);
+    if (!isFinite(bmiT)) bmiT = 22;
+    bmiT = clamp(bmiT, 19, 27);
+
+    // Macros
+    if (macroAuto.checked) autoAdjustMacros();
+
+    const cPct = readPct(carbPct);
+    const fPct = readPct(fatPct);
+    const pPct = readPct(protPct);
+    const sum = cPct + fPct + pPct;
+
+    if (Math.abs(sum - 100) > 0.05){
+      if (sum <= 0){
+        writePct(carbPct, 55);
+        writePct(fatPct, 30);
+        writePct(protPct, 15);
+      } else {
+        const k = 100 / sum;
+        writePct(carbPct, cPct*k);
+        writePct(fatPct, fPct*k);
+        writePct(protPct, pPct*k);
+      }
+      updateMacroHint(readPct(carbPct)+readPct(fatPct)+readPct(protPct));
+    }
+
+    const factor = parseFloat(activity.value);
+    const goalAdj = parseFloat(goal.value);
+
+    // TMB
+    const meta = getFormulaMeta();
+    let bmr;
+
+    if (meta.key === 'msj1990'){
+      if (sex.value === 'male') bmr = (10 * kg) + (6.25 * cm) - (5 * ageY) + 5;
+      else bmr = (10 * kg) + (6.25 * cm) - (5 * ageY) - 161;
+    } else {
+      if (sex.value === 'male') {
+        bmr = 88.362 + (13.397 * kg) + (4.799 * cm) - (5.677 * ageY);
+      } else {
+        bmr = 447.593 + (9.247 * kg) + (3.098 * cm) - (4.330 * ageY);
+      }
+    }
+
+    const tdee = bmr * factor;
+    const tdeeAdj = tdee + (isFinite(goalAdj) ? goalAdj : 0);
+
+    const hM = cm / 100;
+    const bmi = kg / (hM * hM);
+
+    // Pesos (normopeso + ideal + ajustado)
+    const h2 = hM * hM;
+    const wNormMinKg = 18.5 * h2;
+    const wNormMaxKg = 24.9 * h2;
+    const wIdealKg = bmiT * h2;
+
+    // Peso ajustado (AdjBW) con 0.25, si actual > ideal
+    const wAdjKg = (kg > wIdealKg) ? (wIdealKg + 0.25 * (kg - wIdealKg)) : kg;
+
+    // Índices
+    const waistCm = cmFromCirc(waist);
+    const hipCm = cmFromCirc(hip);
+
+    const whr = (waistCm && hipCm) ? (waistCm / hipCm) : null;
+    const wht = (waistCm) ? (waistCm / cm) : null;
+
+    // Proteína objetivo
+    const pr = parseFloat(proteinRate.value);
+    const protTarget = pr * kg;
+
+    // Macros
+    const cPctN = readPct(carbPct);
+    const fPctN = readPct(fatPct);
+    const pPctN = readPct(protPct);
+
+    const cKcal = tdeeAdj * (cPctN/100);
+    const fKcal = tdeeAdj * (fPctN/100);
+    const pKcal = tdeeAdj * (pPctN/100);
+
+    const cGr = cKcal / 4;
+    const fGr = fKcal / 9;
+    const pGr = pKcal / 4;
+
+    return {
+      patientName: name,
+      formula: meta,
+      sex: sex.value,
+      ageY, kg, cm,
+      factor, goalAdj,
+      bmr, tdee, tdeeAdj,
+      bmi,
+      bmiTarget: bmiT,
+      wNormMinKg, wNormMaxKg, wIdealKg, wAdjKg,
+      waistCm, hipCm, whr, wht,
+      proteinRate: pr,
+      protTarget,
+      macros: {
+        cPct: cPctN, fPct: fPctN, pPct: pPctN,
+        cKcal, fKcal, pKcal, cGr, fGr, pGr
+      }
+    };
+  }
+
+  function updateUI(data){
+    if (!data) return;
+
+    resetReveal();
+    requestAnimationFrame(() => requestAnimationFrame(reveal));
+
+    bmrTitle.textContent = `TMB (${data.formula.label})`;
+
+    animateNumber(bmrVal, data.bmr, 0);
+    animateNumber(tdeeVal, data.tdeeAdj, 0);
+
+    const actLabel = activity.options[activity.selectedIndex].textContent;
+    const goalLabel = goal.options[goal.selectedIndex].textContent;
+
+    const nameTxt = data.patientName ? `Paciente: ${data.patientName}. ` : '';
+    bmrSub.textContent = `${nameTxt}${data.formula.long}. Entradas: ${round(data.kg,1)} kg · ${round(data.cm,1)} cm · ${round(data.ageY,0)} años.`;
+    tdeeSub.textContent = `Actividad: ${actLabel}. Ajuste: ${goalLabel}.`;
+
+    animateNumber(carbG, data.macros.cGr, 0);
+    animateNumber(fatG,  data.macros.fGr, 0);
+    animateNumber(protG, data.macros.pGr, 0);
+    animateNumber(protTargetG, data.protTarget, 0);
+
+    segC.style.width = data.macros.cPct + '%';
+    segF.style.width = data.macros.fPct + '%';
+    segP.style.width = data.macros.pPct + '%';
+
+    const deltaProt = data.macros.pGr - data.protTarget;
+    const deltaTxt = isFinite(deltaProt)
+      ? (deltaProt >= 0 ? `(+${round(deltaProt,0)} g vs objetivo)` : `(${round(deltaProt,0)} g vs objetivo)`)
+      : '';
+
+    macrosSub.textContent =
+      `Macros sobre ${round(data.tdeeAdj,0)} kcal: CH ${round(data.macros.cPct,1)}% · Grasas ${round(data.macros.fPct,1)}% · Prot ${round(data.macros.pPct,1)}%.
+       Proteína objetivo: ${round(data.protTarget,0)} g/día. ${deltaTxt}`.replace(/\s+/g,' ');
+
+    animateNumber(bmiVal, data.bmi, 1);
+    const cat = bmiCategory(data.bmi);
+    bmiSub.textContent = cat.label;
+    setBmiMeter(data.bmi, cat.tone);
+
+    // Pesos
+    bmiTargetShow.textContent = String(Math.round(data.bmiTarget)); // selector entero
+    animateNumber(wNormMin, data.wNormMinKg, 1);
+    animateNumber(wNormMax, data.wNormMaxKg, 1);
+    animateNumber(wIdeal, data.wIdealKg, 1);
+    animateNumber(wAdj, data.wAdjKg, 1);
+
+    const diffToNormMax = data.kg - data.wNormMaxKg;
+    const diffToIdeal = data.kg - data.wIdealKg;
+
+    const normTxt = `Para normopeso (IMC 18.5-24.9): ${round(data.wNormMinKg,1)} - ${round(data.wNormMaxKg,1)} kg.`;
+    const idealTxt = `IMC objetivo ${Math.round(data.bmiTarget)} => peso ideal ${round(data.wIdealKg,1)} kg (${diffToIdeal >= 0 ? '+' : ''}${round(diffToIdeal,1)} kg vs actual).`;
+    const adjTxt = `Peso ajustado ${round(data.wAdjKg,1)} kg (coef 0.25).`;
+    const extra = (diffToNormMax > 0.1) ? `Para entrar en normopeso (<=24.9) faltan aprox. ${round(diffToNormMax,1)} kg.` :
+                  (diffToNormMax < -0.1) ? `Estás por debajo del máximo de normopeso en aprox. ${round(-diffToNormMax,1)} kg.` :
+                  `Estás justo en el límite superior de normopeso.`;
+    weightsSub.textContent = `${normTxt} ${idealTxt} ${adjTxt} ${extra}`.replace(/\s+/g,' ');
+
+    // Ratios
+    if (data.waistCm && data.hipCm) animateNumber(whrVal, data.whr, 2);
+    else whrVal.textContent = '-';
+
+    if (data.waistCm) animateNumber(whtVal, data.wht, 2);
+    else whtVal.textContent = '-';
+
+    const ratiosMsg = [];
+    if (data.waistCm && data.hipCm) ratiosMsg.push(`ICC con cintura ${round(data.waistCm,1)} cm y cadera ${round(data.hipCm,1)} cm.`);
+    else ratiosMsg.push('Para ICC, introduce cintura y cadera.');
+    if (data.waistCm) ratiosMsg.push('Cintura/altura requiere solo cintura.');
+    else ratiosMsg.push('Introduce cintura para cintura/altura.');
+    ratiosSub.textContent = ratiosMsg.join(' ');
+  }
+
+  // ---------- PDF Export ----------
+  function pdfSafe(s){
+    return String(s)
+      .replace(/→/g, '->')
+      .replace(/×/g, 'x')
+      .replace(/[–—]/g, '-')
+      .replace(/•/g, '-')
+      .replace(/…/g, '...')
+      .replace(/\u2019/g, "'")
+      .replace(/\u2018/g, "'")
+      .replace(/\u201C/g, '"')
+      .replace(/\u201D/g, '"');
+  }
+
+  function exportPDF(data){
+    if (!data) {
+      showError('Para exportar a PDF, primero calcula con datos válidos.');
+      return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+
+    const W = doc.internal.pageSize.getWidth();
+    const H = doc.internal.pageSize.getHeight();
+    const m = 40;
+
+    const now = new Date();
+    const dt = now.toLocaleString('es-ES');
+
+    function drawCard(x,y,w,h,title,lines){
+      doc.setDrawColor(210);
+      doc.setFillColor(248, 249, 252);
+      doc.roundedRect(x, y, w, h, 10, 10, 'FD');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(30);
+      doc.text(pdfSafe(title), x+12, y+18);
+
+      const innerW = w - 24;
+      const top = y + 34;
+      const bottom = y + h - 12;
+
+      let fontSize = 10;
+      function countLines(fs){
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(fs);
+        let count = 0;
+        for (const t of lines){
+          const arr = doc.splitTextToSize(pdfSafe(t), innerW);
+          count += arr.length;
+        }
+        return count;
+      }
+
+      const max10 = Math.floor((bottom - top) / 13);
+      if (countLines(10) > max10){
+        fontSize = 9;
+        const max9 = Math.floor((bottom - top) / 12);
+        if (countLines(9) > max9) fontSize = 8;
+      }
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(fontSize);
+      doc.setTextColor(55);
+
+      let yy = top;
+      const lh = fontSize === 10 ? 13 : (fontSize === 9 ? 12 : 11);
+
+      for (const t of lines){
+        const arr = doc.splitTextToSize(pdfSafe(t), innerW);
+        for (const line of arr){
+          if (yy > bottom){
+            doc.text('...', x+12, bottom);
+            return;
+          }
+          doc.text(line, x+12, yy);
+          yy += lh;
+        }
+      }
+    }
+
+    // Header
+    doc.setFillColor(28, 34, 56);
+    doc.rect(0, 0, W, 100, 'F');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.setTextColor(255);
+    doc.text('Resumen nutricional - TMB/GET + Pesos + Macros', m, 34);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(225);
+
+    const nameLine = data.patientName ? `Paciente: ${data.patientName}` : 'Paciente: (no indicado)';
+    doc.text(pdfSafe(nameLine), m, 56);
+    doc.text(pdfSafe(data.formula.long), m, 72);
+    doc.text(pdfSafe(`Generado: ${dt}`), m, 88);
+
+    const sexLabel = data.sex === 'male' ? 'Hombre' : 'Mujer';
+    const actLabel = activity.options[activity.selectedIndex].textContent;
+    const goalLabel = goal.options[goal.selectedIndex].textContent;
+
+    const topY = 114;
+    const colGap = 12;
+    const colW = (W - (m*2) - colGap) / 2;
+
+    // Left column
+    drawCard(m, topY, colW, 160, 'Datos', [
+      `Sexo: ${sexLabel}`,
+      `Edad: ${round(data.ageY,0)} años`,
+      `Peso: ${round(data.kg,1)} kg`,
+      `Altura: ${round(data.cm,1)} cm`,
+      `Actividad: ${actLabel}`,
+      `Ajuste: ${goalLabel}`
+    ]);
+
+    drawCard(m, topY+172, colW, 122, 'Energia', [
+      `TMB: ${round(data.bmr,0)} kcal/dia`,
+      `GET/TDEE: ${round(data.tdee,0)} kcal/dia`,
+      `GET/TDEE (ajustado): ${round(data.tdeeAdj,0)} kcal/dia`
+    ]);
+
+    const bmiCat = bmiCategory(data.bmi).label;
+    drawCard(m, topY+306, colW, 200, 'Antropometria y pesos', [
+      `IMC: ${round(data.bmi,1)} (${bmiCat})`,
+      `Normopeso (18.5-24.9): ${round(data.wNormMinKg,1)} - ${round(data.wNormMaxKg,1)} kg`,
+      `IMC objetivo: ${Math.round(data.bmiTarget)} -> peso ideal ${round(data.wIdealKg,1)} kg`,
+      `Peso ajustado (0.25): ${round(data.wAdjKg,1)} kg`,
+      `Cintura: ${data.waistCm ? round(data.waistCm,1) + ' cm' : '-'}`,
+      `Cadera: ${data.hipCm ? round(data.hipCm,1) + ' cm' : '-'}`,
+      `ICC (C/Cad): ${data.whr ? round(data.whr,2) : '-'}`,
+      `Cintura/Altura: ${data.wht ? round(data.wht,2) : '-'}`
+    ]);
+
+    // Right column
+    const xR = m + colW + colGap;
+
+    const cPct = round(data.macros.cPct,1);
+    const fPct = round(data.macros.fPct,1);
+    const pPct = round(data.macros.pPct,1);
+
+    drawCard(xR, topY, colW, 210, 'Macros desde GET/TDEE ajustado', [
+      `Carbohidratos: ${cPct}% -> ${round(data.macros.cGr,0)} g/dia`,
+      `Grasas: ${fPct}% -> ${round(data.macros.fGr,0)} g/dia`,
+      `Proteinas: ${pPct}% -> ${round(data.macros.pGr,0)} g/dia`,
+      `Proteina objetivo: ${round(data.protTarget,0)} g/dia`,
+      `(${data.proteinRate.toFixed(1)} g/kg/dia x ${round(data.kg,1)} kg)`
+    ]);
+
+    // Barra macros
+    const barX = xR + 12;
+    const barY = topY + 158;
+    const barW = colW - 24;
+    const barH = 14;
+
+    doc.setDrawColor(210);
+    doc.setFillColor(240, 242, 247);
+    doc.roundedRect(barX, barY, barW, barH, 7, 7, 'FD');
+
+    const wC = barW * (cPct/100);
+    const wF = barW * (fPct/100);
+    const wP = barW * (pPct/100);
+
+    doc.setFillColor(115, 161, 255); doc.rect(barX, barY, wC, barH, 'F');
+    doc.setFillColor(255, 196, 15);  doc.rect(barX + wC, barY, wF, barH, 'F');
+    doc.setFillColor(46, 204, 113);  doc.rect(barX + wC + wF, barY, wP, barH, 'F');
+
+    drawCard(xR, topY+222, colW, 284, 'Notas', [
+      '- Estimacion poblacional, no prescripcion.',
+      '- Ajustar por masa magra, patologia, medicacion y adherencia.',
+      '- Conversion: CH/Prot 4 kcal/g, grasas 9 kcal/g.',
+      '- Peso ajustado: ideal + 0.25*(actual - ideal) si actual > ideal.'
+    ]);
+
+    // Footer (2 líneas centradas)
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(120);
+
+    const line1 = pdfSafe('Desarrollado por Ana Maria Sanjurjo Amado DUE y German Quintana Diez PhD LV MSC');
+    const line2 = pdfSafe('www.wairua.xyz');
+    doc.text(line1, W/2, H - 30, { align: 'center' });
+    doc.text(line2, W/2, H - 16, { align: 'center' });
+
+    doc.save('resumen-tmb-get-pesos-macros.pdf');
+  }
+
+  // ---------- Events ----------
+  btnCalc.addEventListener('click', () => {
+    const data = calc();
+    if (data) updateUI(data);
+  });
+
+  btnExport.addEventListener('click', () => {
+    const data = calc();
+    if (data) exportPDF(data);
+  });
+
+  btnReset.addEventListener('click', () => {
+    clearError();
+    patientName.value = '';
+
+    [age, weight, height, heightFt, heightIn, waist, hip].forEach(i => i.value = '');
+    weightUnit.value = 'kg';
+    heightUnit.value = 'cm';
+    circUnit.value = 'cm';
+    activity.value = '1.55';
+    goal.value = '0';
+    equation.value = 'hb1984';
+
+    proteinRate.value = '0.8';
+    carbPct.value = '55';
+    fatPct.value  = '30';
+    protPct.value = '15';
+    macroAuto.checked = true;
+    lastMacroChanged = 'carbPct';
+    autoAdjustMacros();
+
+    bmiTarget.value = '22';
+
+    syncHeightUI();
+
+    [bmrVal, tdeeVal, bmiVal, whrVal, whtVal].forEach(e => e.textContent = '-');
+    [carbG, fatG, protG, protTargetG].forEach(e => e.textContent = '-');
+
+    [wNormMin, wNormMax, wIdeal, wAdj].forEach(e => e.textContent = '-');
+    bmiTargetShow.textContent = '-';
+    weightsSub.textContent = 'IMC objetivo - -> Peso ideal - · Peso ajustado -';
+
+    bmrTitle.textContent = 'TMB';
+    bmrSub.textContent = 'Introduce tus datos y pulsa Calcular.';
+    tdeeSub.textContent = 'Actividad + ajuste de objetivo.';
+    macrosSub.textContent = '-';
+    bmiSub.textContent = '-';
+    ratiosSub.textContent = '-';
+
+    bmiFill.style.width = '0%';
+    segC.style.width = '0%';
+    segF.style.width = '0%';
+    segP.style.width = '0%';
+
+    resetReveal();
+    requestAnimationFrame(() => requestAnimationFrame(reveal));
+  });
+
+  // Recalcular al cambiar selects
+  [equation, sex, weightUnit, heightUnit, activity, goal, proteinRate, circUnit, bmiTarget].forEach(node => {
+    node.addEventListener('change', () => {
+      const data = calc();
+      if (data) updateUI(data);
+    });
+  });
+
+  // Init
+  autoAdjustMacros();
+  resetReveal();
+  requestAnimationFrame(() => requestAnimationFrame(reveal));
+})();
+</script>
+</body>
+</html>
