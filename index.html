@@ -421,7 +421,7 @@
               <option value="hb1984" selected>Harris–Benedict revisada (Roza & Shizgal, 1984)</option>
               <option value="msj1990">Mifflin–St Jeor (1990) — recomendada hoy por muchas asociaciones</option>
             </select>
-            <div class="inline-hint">GET/TDEE = TMB × actividad (± ajuste objetivo).</div>
+            <div class="inline-hint">GET/TDEE = TMB × actividad × termogénesis (± ajuste objetivo).</div>
           </div>
 
           <div class="field">
@@ -485,6 +485,15 @@
           </div>
 
           <div class="field">
+            <label>Termogénesis de los alimentos</label>
+            <select id="thermogenesis">
+              <option value="1.1" selected>Con termogénesis (1.1)</option>
+              <option value="1.0">Sin termogénesis (1.0)</option>
+            </select>
+            <div class="inline-hint">Factor de termogénesis inducida por la dieta.</div>
+          </div>
+
+          <div class="field" style="grid-column: 1 / -1;">
             <label>Objetivo (opcional)</label>
             <select id="goal">
               <option value="0" selected>Sin ajuste</option>
@@ -592,7 +601,7 @@
         <div id="error" class="error" role="alert"></div>
 
         <div class="mini">
-          <span class="chip">GET/TDEE = TMB × actividad</span>
+          <span class="chip">GET/TDEE = TMB × actividad × termogénesis</span>
           <span class="chip">IMC = kg / m²</span>
           <span class="chip">Normopeso: IMC 18.5–24.9</span>
           <span class="chip">Peso ideal = IMC objetivo × altura²</span>
@@ -615,10 +624,10 @@
 
           <div class="kpi-item" id="kpiTdee">
             <div class="kpi-top">
-              <p class="kpi-title">GET / TDEE (con actividad y ajuste)</p>
+              <p class="kpi-title">GET / TDEE (con actividad, termogénesis y ajuste)</p>
               <p class="kpi-value"><span data-num id="tdeeVal">—</span> <span class="muted" style="font-size:12px;">kcal/día</span></p>
             </div>
-            <p class="kpi-sub" id="tdeeSub">Actividad + ajuste de objetivo.</p>
+            <p class="kpi-sub" id="tdeeSub">Actividad × termogénesis + ajuste de objetivo.</p>
           </div>
 
           <div class="kpi-item" id="kpiMacros">
@@ -725,6 +734,7 @@
   const heightIn = el('heightIn');
 
   const activity = el('activity');
+  const thermogenesis = el('thermogenesis');
   const goal = el('goal');
 
   const proteinRate = el('proteinRate');
@@ -1034,6 +1044,7 @@
     }
 
     const factor = parseFloat(activity.value);
+    const thermoFactor = parseFloat(thermogenesis.value);
     const goalAdj = parseFloat(goal.value);
 
     // TMB
@@ -1041,9 +1052,11 @@
     let bmr;
 
     if (meta.key === 'msj1990'){
-      if (sex.value === 'male') bmr = (10 * kg) + (6.25 * cm) - (5 * ageY) + 5;
-      else bmr = (10 * kg) + (6.25 * cm) - (5 * ageY) - 161;
+      // Ecuación modificada de Mifflin-St Jeor
+      if (sex.value === 'male') bmr = (9.99 * kg) + (6.25 * cm) - (4.92 * ageY) + 5;
+      else bmr = (9.99 * kg) + (6.25 * cm) - (4.92 * ageY) - 161;
     } else {
+      // Harris-Benedict revisada
       if (sex.value === 'male') {
         bmr = 88.362 + (13.397 * kg) + (4.799 * cm) - (5.677 * ageY);
       } else {
@@ -1051,7 +1064,7 @@
       }
     }
 
-    const tdee = bmr * factor;
+    const tdee = bmr * factor * thermoFactor;
     const tdeeAdj = tdee + (isFinite(goalAdj) ? goalAdj : 0);
 
     const hM = cm / 100;
@@ -1095,7 +1108,7 @@
       formula: meta,
       sex: sex.value,
       ageY, kg, cm,
-      factor, goalAdj,
+      factor, thermoFactor, goalAdj,
       bmr, tdee, tdeeAdj,
       bmi,
       bmiTarget: bmiT,
@@ -1122,11 +1135,12 @@
     animateNumber(tdeeVal, data.tdeeAdj, 0);
 
     const actLabel = activity.options[activity.selectedIndex].textContent;
+    const thermoLabel = thermogenesis.options[thermogenesis.selectedIndex].textContent;
     const goalLabel = goal.options[goal.selectedIndex].textContent;
 
     const nameTxt = data.patientName ? `Paciente: ${data.patientName}. ` : '';
     bmrSub.textContent = `${nameTxt}${data.formula.long}. Entradas: ${round(data.kg,1)} kg · ${round(data.cm,1)} cm · ${round(data.ageY,0)} años.`;
-    tdeeSub.textContent = `Actividad: ${actLabel}. Ajuste: ${goalLabel}.`;
+    tdeeSub.textContent = `Actividad: ${actLabel}. Termogénesis: ${thermoLabel}. Ajuste: ${goalLabel}.`;
 
     animateNumber(carbG, data.macros.cGr, 0);
     animateNumber(fatG,  data.macros.fGr, 0);
@@ -1152,7 +1166,7 @@
     setBmiMeter(data.bmi, cat.tone);
 
     // Pesos
-    bmiTargetShow.textContent = String(Math.round(data.bmiTarget)); // selector entero
+    bmiTargetShow.textContent = String(Math.round(data.bmiTarget));
     animateNumber(wNormMin, data.wNormMinKg, 1);
     animateNumber(wNormMax, data.wNormMaxKg, 1);
     animateNumber(wIdeal, data.wIdealKg, 1);
@@ -1287,6 +1301,7 @@
 
     const sexLabel = data.sex === 'male' ? 'Hombre' : 'Mujer';
     const actLabel = activity.options[activity.selectedIndex].textContent;
+    const thermoLabel = thermogenesis.options[thermogenesis.selectedIndex].textContent;
     const goalLabel = goal.options[goal.selectedIndex].textContent;
 
     const topY = 114;
@@ -1294,23 +1309,24 @@
     const colW = (W - (m*2) - colGap) / 2;
 
     // Left column
-    drawCard(m, topY, colW, 160, 'Datos', [
+    drawCard(m, topY, colW, 180, 'Datos', [
       `Sexo: ${sexLabel}`,
       `Edad: ${round(data.ageY,0)} años`,
       `Peso: ${round(data.kg,1)} kg`,
       `Altura: ${round(data.cm,1)} cm`,
       `Actividad: ${actLabel}`,
+      `Termogenesis: ${thermoLabel}`,
       `Ajuste: ${goalLabel}`
     ]);
 
-    drawCard(m, topY+172, colW, 122, 'Energia', [
+    drawCard(m, topY+192, colW, 122, 'Energia', [
       `TMB: ${round(data.bmr,0)} kcal/dia`,
       `GET/TDEE: ${round(data.tdee,0)} kcal/dia`,
       `GET/TDEE (ajustado): ${round(data.tdeeAdj,0)} kcal/dia`
     ]);
 
     const bmiCat = bmiCategory(data.bmi).label;
-    drawCard(m, topY+306, colW, 200, 'Antropometria y pesos', [
+    drawCard(m, topY+326, colW, 200, 'Antropometria y pesos', [
       `IMC: ${round(data.bmi,1)} (${bmiCat})`,
       `Normopeso (18.5-24.9): ${round(data.wNormMinKg,1)} - ${round(data.wNormMaxKg,1)} kg`,
       `IMC objetivo: ${Math.round(data.bmiTarget)} -> peso ideal ${round(data.wIdealKg,1)} kg`,
@@ -1354,11 +1370,12 @@
     doc.setFillColor(255, 196, 15);  doc.rect(barX + wC, barY, wF, barH, 'F');
     doc.setFillColor(46, 204, 113);  doc.rect(barX + wC + wF, barY, wP, barH, 'F');
 
-    drawCard(xR, topY+222, colW, 284, 'Notas', [
+    drawCard(xR, topY+222, colW, 304, 'Notas', [
       '- Estimacion poblacional, no prescripcion.',
       '- Ajustar por masa magra, patologia, medicacion y adherencia.',
       '- Conversion: CH/Prot 4 kcal/g, grasas 9 kcal/g.',
-      '- Peso ajustado: ideal + 0.25*(actual - ideal) si actual > ideal.'
+      '- Peso ajustado: ideal + 0.25*(actual - ideal) si actual > ideal.',
+      '- Factor de termogenesis: efecto termico de los alimentos.'
     ]);
 
     // Footer (2 líneas centradas)
@@ -1394,6 +1411,7 @@
     heightUnit.value = 'cm';
     circUnit.value = 'cm';
     activity.value = '1.55';
+    thermogenesis.value = '1.1';
     goal.value = '0';
     equation.value = 'hb1984';
 
@@ -1418,7 +1436,7 @@
 
     bmrTitle.textContent = 'TMB';
     bmrSub.textContent = 'Introduce tus datos y pulsa Calcular.';
-    tdeeSub.textContent = 'Actividad + ajuste de objetivo.';
+    tdeeSub.textContent = 'Actividad × termogénesis + ajuste de objetivo.';
     macrosSub.textContent = '-';
     bmiSub.textContent = '-';
     ratiosSub.textContent = '-';
@@ -1433,7 +1451,7 @@
   });
 
   // Recalcular al cambiar selects
-  [equation, sex, weightUnit, heightUnit, activity, goal, proteinRate, circUnit, bmiTarget].forEach(node => {
+  [equation, sex, weightUnit, heightUnit, activity, thermogenesis, goal, proteinRate, circUnit, bmiTarget].forEach(node => {
     node.addEventListener('change', () => {
       const data = calc();
       if (data) updateUI(data);
