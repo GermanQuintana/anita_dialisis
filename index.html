@@ -630,12 +630,12 @@
             <p class="kpi-sub" id="tdeeSub">Actividad × termogénesis + ajuste de objetivo.</p>
           </div>
 
-          <div class="kpi-item" id="kpiTdeeAdj">
+          <div class="kpi-item" id="kpiTdeeAdjusted">
             <div class="kpi-top">
-              <p class="kpi-title">GET / TDEE calculado con peso ajustado</p>
-              <p class="kpi-value"><span data-num id="tdeeAdjVal">—</span> <span class="muted" style="font-size:12px;">kcal/día</span></p>
+              <p class="kpi-title">GET / TDEE calculado con peso ajustado (con actividad, termogénesis y ajuste)</p>
+              <p class="kpi-value"><span data-num id="tdeeAdjustedVal">—</span> <span class="muted" style="font-size:12px;">kcal/día</span></p>
             </div>
-            <p class="kpi-sub" id="tdeeAdjSub">Con peso ajustado × actividad × termogénesis + ajuste.</p>
+            <p class="kpi-sub" id="tdeeAdjustedSub">Calculado usando peso ajustado en lugar del peso real.</p>
           </div>
 
           <div class="kpi-item" id="kpiMacros">
@@ -764,7 +764,7 @@
   const bmrTitle = el('bmrTitle');
   const bmrVal = el('bmrVal');
   const tdeeVal = el('tdeeVal');
-  const tdeeAdjVal = el('tdeeAdjVal');
+  const tdeeAdjustedVal = el('tdeeAdjustedVal');
   const bmiVal = el('bmiVal');
   const whrVal = el('whrVal');
   const whtVal = el('whtVal');
@@ -780,7 +780,7 @@
 
   const bmrSub = el('bmrSub');
   const tdeeSub = el('tdeeSub');
-  const tdeeAdjSub = el('tdeeAdjSub');
+  const tdeeAdjustedSub = el('tdeeAdjustedSub');
   const bmiSub = el('bmiSub');
   const ratiosSub = el('ratiosSub');
   const macrosSub = el('macrosSub');
@@ -796,7 +796,7 @@
 
   const kpiBmr = el('kpiBmr');
   const kpiTdee = el('kpiTdee');
-  const kpiTdeeAdj = el('kpiTdeeAdj');
+  const kpiTdeeAdjusted = el('kpiTdeeAdjusted');
   const kpiMacros = el('kpiMacros');
   const kpiBmi = el('kpiBmi');
   const kpiWeights = el('kpiWeights');
@@ -896,10 +896,10 @@
   }
 
   function resetReveal(){
-    [kpiBmr, kpiTdee, kpiTdeeAdj, kpiMacros, kpiBmi, kpiWeights, kpiRatios].forEach(n => n.classList.remove('show'));
+    [kpiBmr, kpiTdee, kpiTdeeAdjusted, kpiMacros, kpiBmi, kpiWeights, kpiRatios].forEach(n => n.classList.remove('show'));
   }
   function reveal(){
-    const nodes = [kpiBmr, kpiTdee, kpiTdeeAdj, kpiMacros, kpiBmi, kpiWeights, kpiRatios];
+    const nodes = [kpiBmr, kpiTdee, kpiTdeeAdjusted, kpiMacros, kpiBmi, kpiWeights, kpiRatios];
     nodes.forEach((node, i) => setTimeout(() => node.classList.add('show'), 60 + i * 90));
   }
 
@@ -1003,15 +1003,16 @@
     };
   }
 
-  function calculateBMR(kg, cm, ageY, sexValue, formulaKey){
+  // Función para calcular TMB según el peso dado
+  function calculateBMR(kg, cm, ageY, sexVal, formulaKey) {
     let bmr;
     if (formulaKey === 'msj1990'){
       // Ecuación modificada de Mifflin-St Jeor
-      if (sexValue === 'male') bmr = (9.99 * kg) + (6.25 * cm) - (4.92 * ageY) + 5;
+      if (sexVal === 'male') bmr = (9.99 * kg) + (6.25 * cm) - (4.92 * ageY) + 5;
       else bmr = (9.99 * kg) + (6.25 * cm) - (4.92 * ageY) - 161;
     } else {
       // Harris-Benedict revisada
-      if (sexValue === 'male') {
+      if (sexVal === 'male') {
         bmr = 88.362 + (13.397 * kg) + (4.799 * cm) - (5.677 * ageY);
       } else {
         bmr = 447.593 + (9.247 * kg) + (3.098 * cm) - (4.330 * ageY);
@@ -1075,7 +1076,7 @@
     const thermoFactor = parseFloat(thermogenesis.value);
     const goalAdj = parseFloat(goal.value);
 
-    // TMB con peso actual
+    // TMB con peso real
     const meta = getFormulaMeta();
     const bmr = calculateBMR(kg, cm, ageY, sex.value, meta.key);
 
@@ -1097,7 +1098,7 @@
     // TMB con peso ajustado
     const bmrAdjusted = calculateBMR(wAdjKg, cm, ageY, sex.value, meta.key);
     const tdeeAdjusted = bmrAdjusted * factor * thermoFactor;
-    const tdeeAdjustedWithGoal = tdeeAdjusted + (isFinite(goalAdj) ? goalAdj : 0);
+    const tdeeAdjustedFinal = tdeeAdjusted + (isFinite(goalAdj) ? goalAdj : 0);
 
     // Índices
     const waistCm = cmFromCirc(waist);
@@ -1130,7 +1131,7 @@
       ageY, kg, cm,
       factor, thermoFactor, goalAdj,
       bmr, tdee, tdeeAdj,
-      bmrAdjusted, tdeeAdjusted, tdeeAdjustedWithGoal,
+      bmrAdjusted, tdeeAdjusted, tdeeAdjustedFinal,
       bmi,
       bmiTarget: bmiT,
       wNormMinKg, wNormMaxKg, wIdealKg, wAdjKg,
@@ -1154,7 +1155,7 @@
 
     animateNumber(bmrVal, data.bmr, 0);
     animateNumber(tdeeVal, data.tdeeAdj, 0);
-    animateNumber(tdeeAdjVal, data.tdeeAdjustedWithGoal, 0);
+    animateNumber(tdeeAdjustedVal, data.tdeeAdjustedFinal, 0);
 
     const actLabel = activity.options[activity.selectedIndex].textContent;
     const thermoLabel = thermogenesis.options[thermogenesis.selectedIndex].textContent;
@@ -1163,7 +1164,9 @@
     const nameTxt = data.patientName ? `Paciente: ${data.patientName}. ` : '';
     bmrSub.textContent = `${nameTxt}${data.formula.long}. Entradas: ${round(data.kg,1)} kg · ${round(data.cm,1)} cm · ${round(data.ageY,0)} años.`;
     tdeeSub.textContent = `Actividad: ${actLabel}. Termogénesis: ${thermoLabel}. Ajuste: ${goalLabel}.`;
-    tdeeAdjSub.textContent = `Calculado con peso ajustado ${round(data.wAdjKg,1)} kg. TMB: ${round(data.bmrAdjusted,0)} kcal/día.`;
+    
+    const diffTdee = data.tdeeAdjustedFinal - data.tdeeAdj;
+    tdeeAdjustedSub.textContent = `Usando peso ajustado ${round(data.wAdjKg,1)} kg. Diferencia vs GET con peso real: ${diffTdee >= 0 ? '+' : ''}${round(diffTdee,0)} kcal/día.`;
 
     animateNumber(carbG, data.macros.cGr, 0);
     animateNumber(fatG,  data.macros.fGr, 0);
@@ -1342,15 +1345,15 @@
       `Ajuste: ${goalLabel}`
     ]);
 
-    drawCard(m, topY+192, colW, 150, 'Energia', [
+    drawCard(m, topY+192, colW, 142, 'Energia', [
       `TMB: ${round(data.bmr,0)} kcal/dia`,
       `GET/TDEE: ${round(data.tdee,0)} kcal/dia`,
       `GET/TDEE (ajustado): ${round(data.tdeeAdj,0)} kcal/dia`,
-      `GET/TDEE (peso ajustado): ${round(data.tdeeAdjustedWithGoal,0)} kcal/dia`
+      `GET/TDEE (peso ajustado): ${round(data.tdeeAdjustedFinal,0)} kcal/dia`
     ]);
 
     const bmiCat = bmiCategory(data.bmi).label;
-    drawCard(m, topY+354, colW, 200, 'Antropometria y pesos', [
+    drawCard(m, topY+346, colW, 200, 'Antropometria y pesos', [
       `IMC: ${round(data.bmi,1)} (${bmiCat})`,
       `Normopeso (18.5-24.9): ${round(data.wNormMinKg,1)} - ${round(data.wNormMaxKg,1)} kg`,
       `IMC objetivo: ${Math.round(data.bmiTarget)} -> peso ideal ${round(data.wIdealKg,1)} kg`,
@@ -1394,13 +1397,13 @@
     doc.setFillColor(255, 196, 15);  doc.rect(barX + wC, barY, wF, barH, 'F');
     doc.setFillColor(46, 204, 113);  doc.rect(barX + wC + wF, barY, wP, barH, 'F');
 
-    drawCard(xR, topY+222, colW, 332, 'Notas', [
+    drawCard(xR, topY+222, colW, 324, 'Notas', [
       '- Estimacion poblacional, no prescripcion.',
       '- Ajustar por masa magra, patologia, medicacion y adherencia.',
       '- Conversion: CH/Prot 4 kcal/g, grasas 9 kcal/g.',
       '- Peso ajustado: ideal + 0.25*(actual - ideal) si actual > ideal.',
       '- Factor de termogenesis: efecto termico de los alimentos.',
-      `- GET/TDEE con peso ajustado: calculado usando ${round(data.wAdjKg,1)} kg en lugar de ${round(data.kg,1)} kg.`
+      '- GET con peso ajustado: calculo alternativo usando peso ajustado en lugar del peso real.'
     ]);
 
     // Footer (2 líneas centradas)
@@ -1452,7 +1455,7 @@
 
     syncHeightUI();
 
-    [bmrVal, tdeeVal, tdeeAdjVal, bmiVal, whrVal, whtVal].forEach(e => e.textContent = '-');
+    [bmrVal, tdeeVal, tdeeAdjustedVal, bmiVal, whrVal, whtVal].forEach(e => e.textContent = '-');
     [carbG, fatG, protG, protTargetG].forEach(e => e.textContent = '-');
 
     [wNormMin, wNormMax, wIdeal, wAdj].forEach(e => e.textContent = '-');
@@ -1462,7 +1465,7 @@
     bmrTitle.textContent = 'TMB';
     bmrSub.textContent = 'Introduce tus datos y pulsa Calcular.';
     tdeeSub.textContent = 'Actividad × termogénesis + ajuste de objetivo.';
-    tdeeAdjSub.textContent = 'Con peso ajustado × actividad × termogénesis + ajuste.';
+    tdeeAdjustedSub.textContent = 'Calculado usando peso ajustado en lugar del peso real.';
     macrosSub.textContent = '-';
     bmiSub.textContent = '-';
     ratiosSub.textContent = '-';
