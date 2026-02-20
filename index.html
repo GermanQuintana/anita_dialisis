@@ -6,7 +6,6 @@
   <title>Calculadora TMB/GET + IMC + Índices + Macros</title>
   <meta name="description" content="TMB (Harris–Benedict revisada / Mifflin-St Jeor), GET/TDEE, IMC, ICC, cintura/altura, pesos objetivo/ideal/ajustado y macros editables. Exporta a PDF. Modo día/noche." />
 
-  <!-- jsPDF (exportar a PDF) -->
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 
   <style>
@@ -158,7 +157,7 @@
 
     input, select, button{font: inherit;}
 
-    input, select{
+    input[type="text"], input[type="number"], select{
       width: 100%;
       padding: 10px 11px;
       border-radius: 12px;
@@ -168,10 +167,48 @@
       outline: none;
       transition: border-color .12s ease, box-shadow .12s ease;
     }
-    input:focus, select:focus{box-shadow: 0 0 0 4px var(--focus);}
+    input[type="text"]:focus, input[type="number"]:focus, select:focus{box-shadow: 0 0 0 4px var(--focus);}
     input[type="number"]{appearance:textfield;}
     input[type="number"]::-webkit-outer-spin-button,
     input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+    /* Estilos del slider (range) */
+    input[type=range] {
+      -webkit-appearance: none;
+      width: 100%;
+      background: transparent;
+      outline: none;
+    }
+    input[type=range]:focus {
+      outline: none;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      height: 20px;
+      width: 20px;
+      border-radius: 50%;
+      background: #ffffff;
+      cursor: pointer;
+      margin-top: -8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+      transition: transform 0.1s;
+    }
+    input[type=range]::-webkit-slider-thumb:hover {
+      transform: scale(1.1);
+    }
+    input[type=range]::-webkit-slider-runnable-track {
+      width: 100%;
+      height: 6px;
+      cursor: pointer;
+      background: rgba(255,255,255,0.2);
+      border-radius: 3px;
+    }
+    [data-theme="light"] input[type=range]::-webkit-slider-thumb {
+      background: #0a0e19;
+    }
+    [data-theme="light"] input[type=range]::-webkit-slider-runnable-track {
+      background: rgba(0,0,0,0.15);
+    }
 
     /* Dropdown legible en tema oscuro */
     select{ color: var(--text); }
@@ -401,7 +438,6 @@
     </header>
 
     <main>
-      <!-- Inputs -->
       <section class="card">
         <h2>Datos</h2>
         <p class="help">
@@ -509,7 +545,7 @@
 
         <h2 style="margin-top:0;">Proteína y macros</h2>
         <p class="help">
-          Proteína objetivo: <b>x g/kg/día</b>. Macros desde el <b>GET/TDEE</b> (kcal/g: CH 4, Prot 4, Grasas 9).
+          Proteína objetivo y <b>Energía ERC</b>. Macros desde el <b>GET/TDEE</b> (kcal/g: CH 4, Prot 4, Grasas 9).
           Los porcentajes son editables.
         </p>
 
@@ -524,6 +560,16 @@
           </div>
 
           <div class="field">
+            <label>Energía ERC (kcal/kg/día)</label>
+            <div class="row" style="margin-top: 4px; padding: 0 4px;">
+              <span class="muted" style="font-size:13px; font-weight:bold;">30</span>
+              <input id="ercFactor" type="range" min="30" max="35" step="5" value="30" style="flex:1;" />
+              <span class="muted" style="font-size:13px; font-weight:bold;">35</span>
+            </div>
+            <div class="inline-hint">Seleccionado: <b id="ercFactorShow" style="color:var(--text)">30</b> kcal/kg/día</div>
+          </div>
+
+          <div class="field" style="grid-column: 1 / -1;">
             <label>Macros (%) — editable</label>
             <div class="row">
               <input id="carbPct" class="macro-input" type="number" min="0" max="100" step="0.1" value="55" />
@@ -609,7 +655,6 @@
         </div>
       </section>
 
-      <!-- Results -->
       <section class="card results" aria-live="polite">
         <span class="badge">✨ Resultados (incluye pesos)</span>
 
@@ -638,23 +683,43 @@
             <p class="kpi-sub" id="tdeeAdjustedSub">Calculado usando peso ajustado en lugar del peso real.</p>
           </div>
 
+          <div class="kpi-item" id="kpiErc">
+            <div class="kpi-top">
+              <p class="kpi-title">Recomendaciones de energía en ERC (kcal/kg/día) según peso ajustado</p>
+              <p class="kpi-value"><span data-num id="ercVal">—</span> <span class="muted" style="font-size:12px;">kcal/día</span></p>
+            </div>
+            <p class="kpi-sub" id="ercSub">Cálculo: 30 × peso ajustado.</p>
+          </div>
+
           <div class="kpi-item" id="kpiMacros">
             <div class="kpi-top">
-              <p class="kpi-title">Macros desde GET/TDEE + proteína objetivo</p>
-              <p class="kpi-value" style="font-size:16px;">
-                CH: <b><span id="carbG">—</span>g</b> · Grasas: <b><span id="fatG">—</span>g</b> · Prot: <b><span id="protG">—</span>g</b>
-              </p>
+              <p class="kpi-title" style="margin-bottom:8px;">Macros y Proteína Objetivo</p>
             </div>
-            <p class="kpi-sub" id="macrosSub">—</p>
+            
+            <p class="kpi-sub" style="color:var(--text); font-weight:600; margin-top:0;">Según Peso Real y GET/TDEE normal</p>
+            <p class="kpi-value" style="font-size:15px;">
+              CH: <b><span id="carbG">—</span>g</b> · Grasas: <b><span id="fatG">—</span>g</b> · Prot: <b><span id="protG">—</span>g</b>
+            </p>
+            <p class="kpi-sub">
+              Proteína objetivo: <b><span id="protTargetG">—</span></b> g/día
+            </p>
+
+            <hr class="divider" style="margin: 12px 0; border-top: 1px dashed var(--border);">
+
+            <p class="kpi-sub" style="color:var(--text); font-weight:600; margin-top:0;">Según Peso Ajustado y GET/TDEE ajustado</p>
+            <p class="kpi-value" style="font-size:15px;">
+              CH: <b><span id="carbGAdj">—</span>g</b> · Grasas: <b><span id="fatGAdj">—</span>g</b> · Prot: <b><span id="protGAdj">—</span>g</b>
+            </p>
+            <p class="kpi-sub">
+              Proteína objetivo: <b><span id="protTargetGAdj">—</span></b> g/día
+            </p>
+
+            <p class="kpi-sub" id="macrosSub" style="margin-top:12px;">—</p>
             <div class="macrobar" aria-hidden="true">
               <div class="seg c" id="segC" style="width:0%"></div>
               <div class="seg f" id="segF" style="width:0%"></div>
               <div class="seg p" id="segP" style="width:0%"></div>
             </div>
-            <p class="kpi-sub" style="margin-top:8px;">
-              Proteína objetivo (g/kg/día): <b><span id="protTargetG">—</span> g/día</b>
-              <span class="muted">· (según selector)</span>
-            </p>
           </div>
 
           <div class="kpi-item" id="kpiBmi">
@@ -746,6 +811,8 @@
   const goal = el('goal');
 
   const proteinRate = el('proteinRate');
+  const ercFactor = el('ercFactor');
+  const ercFactorShow = el('ercFactorShow');
 
   const carbPct = el('carbPct');
   const fatPct  = el('fatPct');
@@ -765,6 +832,7 @@
   const bmrVal = el('bmrVal');
   const tdeeVal = el('tdeeVal');
   const tdeeAdjustedVal = el('tdeeAdjustedVal');
+  const ercVal = el('ercVal');
   const bmiVal = el('bmiVal');
   const whrVal = el('whrVal');
   const whtVal = el('whtVal');
@@ -774,6 +842,11 @@
   const protG = el('protG');
   const protTargetG = el('protTargetG');
 
+  const carbGAdj = el('carbGAdj');
+  const fatGAdj = el('fatGAdj');
+  const protGAdj = el('protGAdj');
+  const protTargetGAdj = el('protTargetGAdj');
+
   const segC = el('segC');
   const segF = el('segF');
   const segP = el('segP');
@@ -781,6 +854,7 @@
   const bmrSub = el('bmrSub');
   const tdeeSub = el('tdeeSub');
   const tdeeAdjustedSub = el('tdeeAdjustedSub');
+  const ercSub = el('ercSub');
   const bmiSub = el('bmiSub');
   const ratiosSub = el('ratiosSub');
   const macrosSub = el('macrosSub');
@@ -797,6 +871,7 @@
   const kpiBmr = el('kpiBmr');
   const kpiTdee = el('kpiTdee');
   const kpiTdeeAdjusted = el('kpiTdeeAdjusted');
+  const kpiErc = el('kpiErc');
   const kpiMacros = el('kpiMacros');
   const kpiBmi = el('kpiBmi');
   const kpiWeights = el('kpiWeights');
@@ -896,10 +971,10 @@
   }
 
   function resetReveal(){
-    [kpiBmr, kpiTdee, kpiTdeeAdjusted, kpiMacros, kpiBmi, kpiWeights, kpiRatios].forEach(n => n.classList.remove('show'));
+    [kpiBmr, kpiTdee, kpiTdeeAdjusted, kpiErc, kpiMacros, kpiBmi, kpiWeights, kpiRatios].forEach(n => n.classList.remove('show'));
   }
   function reveal(){
-    const nodes = [kpiBmr, kpiTdee, kpiTdeeAdjusted, kpiMacros, kpiBmi, kpiWeights, kpiRatios];
+    const nodes = [kpiBmr, kpiTdee, kpiTdeeAdjusted, kpiErc, kpiMacros, kpiBmi, kpiWeights, kpiRatios];
     nodes.forEach((node, i) => setTimeout(() => node.classList.add('show'), 60 + i * 90));
   }
 
@@ -986,6 +1061,11 @@
     });
   });
   macroAuto.addEventListener('change', autoAdjustMacros);
+
+  // ---------- Events Slider ERC ----------
+  ercFactor.addEventListener('input', (e) => {
+    ercFactorShow.textContent = e.target.value;
+  });
 
   // ---------- Fórmulas ----------
   function getFormulaMeta(){
@@ -1110,12 +1190,18 @@
     // Proteína objetivo
     const pr = parseFloat(proteinRate.value);
     const protTarget = pr * kg;
+    const protTargetAdj = pr * wAdjKg;
+    
+    // Recomendaciones de energía ERC
+    const ercMult = parseFloat(ercFactor.value) || 30;
+    const ercEnergy = ercMult * wAdjKg;
 
-    // Macros
+    // Macros (Porcentajes limpios)
     const cPctN = readPct(carbPct);
     const fPctN = readPct(fatPct);
     const pPctN = readPct(protPct);
 
+    // Macros para GET/TDEE normal
     const cKcal = tdeeAdj * (cPctN/100);
     const fKcal = tdeeAdj * (fPctN/100);
     const pKcal = tdeeAdj * (pPctN/100);
@@ -1123,6 +1209,15 @@
     const cGr = cKcal / 4;
     const fGr = fKcal / 9;
     const pGr = pKcal / 4;
+
+    // Macros para GET/TDEE ajustado
+    const cKcalAdj = tdeeAdjustedFinal * (cPctN/100);
+    const fKcalAdj = tdeeAdjustedFinal * (fPctN/100);
+    const pKcalAdj = tdeeAdjustedFinal * (pPctN/100);
+
+    const cGrAdj = cKcalAdj / 4;
+    const fGrAdj = fKcalAdj / 9;
+    const pGrAdj = pKcalAdj / 4;
 
     return {
       patientName: name,
@@ -1138,9 +1233,13 @@
       waistCm, hipCm, whr, wht,
       proteinRate: pr,
       protTarget,
+      protTargetAdj,
+      ercMult,
+      ercEnergy,
       macros: {
         cPct: cPctN, fPct: fPctN, pPct: pPctN,
-        cKcal, fKcal, pKcal, cGr, fGr, pGr
+        cKcal, fKcal, pKcal, cGr, fGr, pGr,
+        cGrAdj, fGrAdj, pGrAdj
       }
     };
   }
@@ -1156,6 +1255,7 @@
     animateNumber(bmrVal, data.bmr, 0);
     animateNumber(tdeeVal, data.tdeeAdj, 0);
     animateNumber(tdeeAdjustedVal, data.tdeeAdjustedFinal, 0);
+    animateNumber(ercVal, data.ercEnergy, 0);
 
     const actLabel = activity.options[activity.selectedIndex].textContent;
     const thermoLabel = thermogenesis.options[thermogenesis.selectedIndex].textContent;
@@ -1167,24 +1267,26 @@
     
     const diffTdee = data.tdeeAdjustedFinal - data.tdeeAdj;
     tdeeAdjustedSub.textContent = `Usando peso ajustado ${round(data.wAdjKg,1)} kg. Diferencia vs GET con peso real: ${diffTdee >= 0 ? '+' : ''}${round(diffTdee,0)} kcal/día.`;
+    
+    ercSub.textContent = `Cálculo: ${data.ercMult} × ${round(data.wAdjKg, 1)} kg (peso ajustado).`;
 
+    // Normal Macros
     animateNumber(carbG, data.macros.cGr, 0);
     animateNumber(fatG,  data.macros.fGr, 0);
     animateNumber(protG, data.macros.pGr, 0);
     animateNumber(protTargetG, data.protTarget, 0);
 
+    // Adjusted Macros
+    animateNumber(carbGAdj, data.macros.cGrAdj, 0);
+    animateNumber(fatGAdj,  data.macros.fGrAdj, 0);
+    animateNumber(protGAdj, data.macros.pGrAdj, 0);
+    animateNumber(protTargetGAdj, data.protTargetAdj, 0);
+
     segC.style.width = data.macros.cPct + '%';
     segF.style.width = data.macros.fPct + '%';
     segP.style.width = data.macros.pPct + '%';
 
-    const deltaProt = data.macros.pGr - data.protTarget;
-    const deltaTxt = isFinite(deltaProt)
-      ? (deltaProt >= 0 ? `(+${round(deltaProt,0)} g vs objetivo)` : `(${round(deltaProt,0)} g vs objetivo)`)
-      : '';
-
-    macrosSub.textContent =
-      `Macros sobre ${round(data.tdeeAdj,0)} kcal: CH ${round(data.macros.cPct,1)}% · Grasas ${round(data.macros.fPct,1)}% · Prot ${round(data.macros.pPct,1)}%.
-       Proteína objetivo: ${round(data.protTarget,0)} g/día. ${deltaTxt}`.replace(/\s+/g,' ');
+    macrosSub.textContent = `Distribución: Carbohidratos ${round(data.macros.cPct,1)}% · Grasas ${round(data.macros.fPct,1)}% · Proteínas ${round(data.macros.pPct,1)}%.`;
 
     animateNumber(bmiVal, data.bmi, 1);
     const cat = bmiCategory(data.bmi);
@@ -1345,15 +1447,16 @@
       `Ajuste: ${goalLabel}`
     ]);
 
-    drawCard(m, topY+192, colW, 142, 'Energia', [
+    drawCard(m, topY+192, colW, 155, 'Energia', [
       `TMB: ${round(data.bmr,0)} kcal/dia`,
       `GET/TDEE: ${round(data.tdee,0)} kcal/dia`,
       `GET/TDEE (ajustado): ${round(data.tdeeAdj,0)} kcal/dia`,
-      `GET/TDEE (peso ajustado): ${round(data.tdeeAdjustedFinal,0)} kcal/dia`
+      `GET/TDEE (peso ajustado): ${round(data.tdeeAdjustedFinal,0)} kcal/dia`,
+      `Energia en ERC (${data.ercMult} kcal/kg/dia): ${round(data.ercEnergy,0)} kcal/dia`
     ]);
 
     const bmiCat = bmiCategory(data.bmi).label;
-    drawCard(m, topY+346, colW, 200, 'Antropometria y pesos', [
+    drawCard(m, topY+359, colW, 186, 'Antropometria y pesos', [
       `IMC: ${round(data.bmi,1)} (${bmiCat})`,
       `Normopeso (18.5-24.9): ${round(data.wNormMinKg,1)} - ${round(data.wNormMaxKg,1)} kg`,
       `IMC objetivo: ${Math.round(data.bmiTarget)} -> peso ideal ${round(data.wIdealKg,1)} kg`,
@@ -1371,17 +1474,22 @@
     const fPct = round(data.macros.fPct,1);
     const pPct = round(data.macros.pPct,1);
 
-    drawCard(xR, topY, colW, 210, 'Macros desde GET/TDEE ajustado', [
-      `Carbohidratos: ${cPct}% -> ${round(data.macros.cGr,0)} g/dia`,
-      `Grasas: ${fPct}% -> ${round(data.macros.fGr,0)} g/dia`,
-      `Proteinas: ${pPct}% -> ${round(data.macros.pGr,0)} g/dia`,
+    const macroLines = [
+      `Distribucion: CH ${cPct}% | Grasas ${fPct}% | Prot ${pPct}%`,
+      ``,
+      `[ SEGUN PESO REAL ] - ${round(data.kg,1)} kg | GET: ${round(data.tdeeAdj,0)} kcal`,
+      `CH: ${round(data.macros.cGr,0)} g  |  Grasas: ${round(data.macros.fGr,0)} g  |  Prot: ${round(data.macros.pGr,0)} g`,
       `Proteina objetivo: ${round(data.protTarget,0)} g/dia`,
-      `(${data.proteinRate.toFixed(1)} g/kg/dia x ${round(data.kg,1)} kg)`
-    ]);
+      ``,
+      `[ SEGUN PESO AJUSTADO ] - ${round(data.wAdjKg,1)} kg | GET: ${round(data.tdeeAdjustedFinal,0)} kcal`,
+      `CH: ${round(data.macros.cGrAdj,0)} g  |  Grasas: ${round(data.macros.fGrAdj,0)} g  |  Prot: ${round(data.macros.pGrAdj,0)} g`,
+      `Proteina objetivo: ${round(data.protTargetAdj,0)} g/dia`
+    ];
+    drawCard(xR, topY, colW, 230, 'Macros', macroLines);
 
     // Barra macros
     const barX = xR + 12;
-    const barY = topY + 158;
+    const barY = topY + 185;
     const barW = colW - 24;
     const barH = 14;
 
@@ -1397,13 +1505,13 @@
     doc.setFillColor(255, 196, 15);  doc.rect(barX + wC, barY, wF, barH, 'F');
     doc.setFillColor(46, 204, 113);  doc.rect(barX + wC + wF, barY, wP, barH, 'F');
 
-    drawCard(xR, topY+222, colW, 324, 'Notas', [
+    drawCard(xR, topY+242, colW, 303, 'Notas', [
       '- Estimacion poblacional, no prescripcion.',
       '- Ajustar por masa magra, patologia, medicacion y adherencia.',
       '- Conversion: CH/Prot 4 kcal/g, grasas 9 kcal/g.',
       '- Peso ajustado: ideal + 0.25*(actual - ideal) si actual > ideal.',
       '- Factor de termogenesis: efecto termico de los alimentos.',
-      '- GET con peso ajustado: calculo alternativo usando peso ajustado en lugar del peso real.'
+      `- Energia ERC: calculada con factor seleccionado x peso ajustado.`
     ]);
 
     // Footer (2 líneas centradas)
@@ -1444,6 +1552,9 @@
     equation.value = 'hb1984';
 
     proteinRate.value = '0.8';
+    ercFactor.value = '30';
+    ercFactorShow.textContent = '30';
+    
     carbPct.value = '55';
     fatPct.value  = '30';
     protPct.value = '15';
@@ -1455,8 +1566,8 @@
 
     syncHeightUI();
 
-    [bmrVal, tdeeVal, tdeeAdjustedVal, bmiVal, whrVal, whtVal].forEach(e => e.textContent = '-');
-    [carbG, fatG, protG, protTargetG].forEach(e => e.textContent = '-');
+    [bmrVal, tdeeVal, tdeeAdjustedVal, ercVal, bmiVal, whrVal, whtVal].forEach(e => e.textContent = '-');
+    [carbG, fatG, protG, protTargetG, carbGAdj, fatGAdj, protGAdj, protTargetGAdj].forEach(e => e.textContent = '-');
 
     [wNormMin, wNormMax, wIdeal, wAdj].forEach(e => e.textContent = '-');
     bmiTargetShow.textContent = '-';
@@ -1466,6 +1577,7 @@
     bmrSub.textContent = 'Introduce tus datos y pulsa Calcular.';
     tdeeSub.textContent = 'Actividad × termogénesis + ajuste de objetivo.';
     tdeeAdjustedSub.textContent = 'Calculado usando peso ajustado en lugar del peso real.';
+    ercSub.textContent = 'Cálculo: 30 × peso ajustado.';
     macrosSub.textContent = '-';
     bmiSub.textContent = '-';
     ratiosSub.textContent = '-';
@@ -1479,8 +1591,8 @@
     requestAnimationFrame(() => requestAnimationFrame(reveal));
   });
 
-  // Recalcular al cambiar selects
-  [equation, sex, weightUnit, heightUnit, activity, thermogenesis, goal, proteinRate, circUnit, bmiTarget].forEach(node => {
+  // Recalcular al cambiar selects y slider
+  [equation, sex, weightUnit, heightUnit, activity, thermogenesis, goal, proteinRate, ercFactor, circUnit, bmiTarget].forEach(node => {
     node.addEventListener('change', () => {
       const data = calc();
       if (data) updateUI(data);
