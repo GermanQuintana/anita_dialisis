@@ -172,42 +172,50 @@
     input[type="number"]::-webkit-outer-spin-button,
     input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
-    /* Estilos del slider (range) */
-    input[type=range] {
-      -webkit-appearance: none;
-      width: 100%;
-      background: transparent;
-      outline: none;
+    /* Estilos del Toggle Switch ERC (tipo pastilla azul) */
+    .erc-switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+      flex-shrink: 0;
     }
-    input[type=range]:focus {
-      outline: none;
+    .erc-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+      margin: 0;
     }
-    input[type=range]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      height: 20px;
-      width: 20px;
+    .erc-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: rgba(255, 255, 255, 0.12);
+      border: 1px solid var(--border);
+      transition: .3s ease-in-out;
+      border-radius: 34px;
+    }
+    [data-theme="light"] .erc-slider {
+      background-color: rgba(0, 0, 0, 0.08);
+    }
+    .erc-slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 2px;
+      bottom: 2px;
+      background-color: #ffffff;
+      transition: .3s cubic-bezier(0.4, 0.0, 0.2, 1);
       border-radius: 50%;
-      background: #ffffff;
-      cursor: pointer;
-      margin-top: -8px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-      transition: transform 0.1s;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.25);
     }
-    input[type=range]::-webkit-slider-thumb:hover {
-      transform: scale(1.1);
+    input:checked + .erc-slider {
+      background: #3ab0ff; /* Azul estilo moderno */
+      border-color: #3ab0ff;
     }
-    input[type=range]::-webkit-slider-runnable-track {
-      width: 100%;
-      height: 6px;
-      cursor: pointer;
-      background: rgba(255,255,255,0.2);
-      border-radius: 3px;
-    }
-    [data-theme="light"] input[type=range]::-webkit-slider-thumb {
-      background: #0a0e19;
-    }
-    [data-theme="light"] input[type=range]::-webkit-slider-runnable-track {
-      background: rgba(0,0,0,0.15);
+    input:checked + .erc-slider:before {
+      transform: translateX(20px);
     }
 
     /* Dropdown legible en tema oscuro */
@@ -561,9 +569,14 @@
 
           <div class="field">
             <label>Energía ERC (kcal/kg/día)</label>
-            <div class="row" style="margin-top: 4px; padding: 0 4px;">
+            <div class="row" style="margin-top: 4px; padding: 0 4px; gap: 10px;">
               <span class="muted" style="font-size:13px; font-weight:bold;">30</span>
-              <input id="ercFactor" type="range" min="30" max="35" step="5" value="30" style="flex:1;" />
+              
+              <label class="erc-switch" aria-label="Cambiar entre 30 y 35 kcal/kg/día">
+                <input type="checkbox" id="ercFactor" />
+                <span class="erc-slider"></span>
+              </label>
+
               <span class="muted" style="font-size:13px; font-weight:bold;">35</span>
             </div>
             <div class="inline-hint">Seleccionado: <b id="ercFactorShow" style="color:var(--text)">30</b> kcal/kg/día</div>
@@ -1062,9 +1075,9 @@
   });
   macroAuto.addEventListener('change', autoAdjustMacros);
 
-  // ---------- Events Slider ERC ----------
-  ercFactor.addEventListener('input', (e) => {
-    ercFactorShow.textContent = e.target.value;
+  // ---------- Events Slider ERC (Checkbox Toggle) ----------
+  ercFactor.addEventListener('change', (e) => {
+    ercFactorShow.textContent = e.target.checked ? '35' : '30';
   });
 
   // ---------- Fórmulas ----------
@@ -1192,8 +1205,8 @@
     const protTarget = pr * kg;
     const protTargetAdj = pr * wAdjKg;
     
-    // Recomendaciones de energía ERC
-    const ercMult = parseFloat(ercFactor.value) || 30;
+    // Recomendaciones de energía ERC (leemos el checkbox toggle)
+    const ercMult = ercFactor.checked ? 35 : 30;
     const ercEnergy = ercMult * wAdjKg;
 
     // Macros (Porcentajes limpios)
@@ -1552,7 +1565,7 @@
     equation.value = 'hb1984';
 
     proteinRate.value = '0.8';
-    ercFactor.value = '30';
+    ercFactor.checked = false; // Por defecto a 30
     ercFactorShow.textContent = '30';
     
     carbPct.value = '55';
